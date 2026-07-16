@@ -1,0 +1,253 @@
+@testable import CardScanner
+import Testing
+
+struct ScanResolverTests {
+    private let configuration = ScannerConfiguration()
+
+    private let midBolt = CatalogPrinting(
+        id: "uuid-mid-117",
+        name: "Lightning Bolt",
+        setCode: "MID",
+        collectorNumber: "117"
+    )
+
+    private let midReading = CollectorInfo(collectorNumber: "117", setCode: "MID")
+
+    private func answersWithHit() -> CatalogAnswers {
+        var answers = CatalogAnswers()
+        answers.printings[CatalogAnswers.PrintingKey(setCode: "MID", collectorNumber: "117")] = midBolt
+        return answers
+    }
+
+    private func decide(
+        names: [(name: String, weight: Double)] = [],
+        collectors: [(info: CollectorInfo, weight: Double)] = [],
+        answers: CatalogAnswers = CatalogAnswers(),
+        elapsed: Duration = .seconds(1)
+    ) -> ScanDecision {
+        ScanResolver.decide(
+            names: names,
+            collectors: collectors,
+            answers: answers,
+            elapsed: elapsed,
+            configuration: configuration
+        )
+    }
+
+    // MARK: Rule A — exact printing
+
+    @Test func ruleALocksWithAgreeingName() {
+        let decision = decide(
+            names: [("Lightning Bolt", 2.0)],
+            collectors: [(midReading, 2.6)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock?.confidence == .exactPrinting)
+        #expect(decision.lock?.printing == midBolt)
+        #expect(decision.progress == 1)
+    }
+
+    @Test func ruleAToleratesOCRDamageInTheName() {
+        let decision = decide(
+            names: [("Lightnimg Bolt", 2.0)],
+            collectors: [(midReading, 2.6)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock?.confidence == .exactPrinting)
+        #expect(decision.lock?.name == "Lightning Bolt", "locked name is the catalog's, not the OCR reading")
+    }
+
+    @Test func ruleANeedsEnoughWeight() {
+        let decision = decide(
+            names: [("Lightning Bolt", 2.0)],
+            collectors: [(midReading, 1.0)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock == nil)
+        #expect(decision.progress < 1)
+    }
+
+    @Test func ruleANeedsAClearLeadOverTheRunnerUp() {
+        let runnerUp = CollectorInfo(collectorNumber: "111", setCode: "MID")
+        let decision = decide(
+            names: [("Lightning Bolt", 2.0)],
+            collectors: [(midReading, 2.6), (runnerUp, 2.0)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock == nil, "2.6 vs 2.0 is below the 2.0× lead ratio")
+    }
+
+    // MARK: Rule B — printing only
+
+    @Test func ruleBLocksWithoutANameAtHigherWeight() {
+        let decision = decide(
+            names: [],
+            collectors: [(midReading, 4.2)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock?.confidence == .printingOnly)
+        #expect(decision.lock?.printing == midBolt)
+    }
+
+    @Test func ruleBNeedsMoreWeightThanRuleA() {
+        let decision = decide(
+            names: [],
+            collectors: [(midReading, 2.6)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock == nil)
+    }
+
+    @Test func ruleBIsVetoedByAContradictingName() {
+        let decision = decide(
+            names: [("Craterhoof Behemoth", 2.5)],
+            collectors: [(midReading, 5.0)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock == nil, "a strong unrelated name means the collector read is suspect")
+    }
+
+    // MARK: Catalog misses and lookups
+
+    @Test func missingAnswerRequestsALookup() {
+        let decision = decide(
+            names: [("Lightning Bolt", 2.0)],
+            collectors: [(midReading, 2.6)]
+        )
+        #expect(decision.lock == nil)
+        #expect(decision.neededLookups == [.printing(setCode: "MID", collectorNumber: "117")])
+    }
+
+    @Test func confirmedMissWithStrongEvidenceHintsAlignment() {
+        var answers = CatalogAnswers()
+        answers.printings.updateValue(
+            nil,
+            forKey: CatalogAnswers.PrintingKey(setCode: "MID", collectorNumber: "117")
+        )
+        let decision = decide(
+            collectors: [(midReading, 4.5)],
+            answers: answers
+        )
+        #expect(decision.lock == nil)
+        #expect(decision.hint == .checkAlignment)
+    }
+
+    // MARK: Rule C — name-only fallback
+
+    @Test func ruleCLocksAfterTheGracePeriod() {
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt]
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock?.confidence == .nameOnly)
+        #expect(decision.lock?.printing == midBolt, "single printing is unambiguous")
+        #expect(decision.lock?.alternates == [midBolt])
+    }
+
+    @Test func ruleCWaitsOutTheGracePeriod() {
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt]
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            answers: answers,
+            elapsed: .seconds(1)
+        )
+        #expect(decision.lock == nil)
+    }
+
+    @Test func ruleCIsSuppressedByAStrongCollectorReading() {
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt]
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            collectors: [(midReading, 1.5)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock == nil, "the collector line is still winning; keep working on it")
+        #expect(decision.neededLookups == [.printing(setCode: "MID", collectorNumber: "117")])
+    }
+
+    @Test func ruleCRequestsCandidatesWhenNotFetched() {
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock == nil)
+        #expect(decision.neededLookups == [.nameCandidates("Lightning Bolt")])
+    }
+
+    @Test func ruleCLeavesPrintingOpenWhenAmbiguous() {
+        let reprint = CatalogPrinting(
+            id: "uuid-clb-187",
+            name: "Lightning Bolt",
+            setCode: "CLB",
+            collectorNumber: "187"
+        )
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt, reprint]
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock?.confidence == .nameOnly)
+        #expect(decision.lock?.printing == nil)
+        #expect(decision.lock?.alternates.count == 2)
+    }
+
+    @Test func ruleCPinsPrintingViaBareCollectorNumber() {
+        let reprint = CatalogPrinting(
+            id: "uuid-clb-187",
+            name: "Lightning Bolt",
+            setCode: "CLB",
+            collectorNumber: "187"
+        )
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt, reprint]
+        let bareNumber = CollectorInfo(collectorNumber: "187", setCode: nil)
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            collectors: [(bareNumber, 0.8)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock?.confidence == .nameOnly)
+        #expect(decision.lock?.printing == reprint, "the bare number singles out the printing")
+    }
+
+    @Test func ruleCRejectsANarrowWinOverASiblingName() {
+        let sibling = CatalogPrinting(
+            id: "uuid-ths-101",
+            name: "Fanatics of Mogis",
+            setCode: "THS",
+            collectorNumber: "101"
+        )
+        let target = CatalogPrinting(
+            id: "uuid-ths-100",
+            name: "Fanatic of Mogis",
+            setCode: "THS",
+            collectorNumber: "100"
+        )
+        var answers = CatalogAnswers()
+        answers.nameCandidates["fanatic of mogis"] = [target, sibling]
+        let decision = decide(
+            names: [("Fanatic of Mogis", 3.2)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        // One edit separates the sibling names (~0.94 similarity), so the
+        // exact match's lead is under the 0.1 margin — too risky to lock.
+        #expect(decision.lock == nil)
+    }
+
+    @Test func noEvidenceMeansNoDecision() {
+        let decision = decide()
+        #expect(decision.lock == nil)
+        #expect(decision.progress == 0)
+        #expect(decision.neededLookups.isEmpty)
+    }
+}

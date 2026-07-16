@@ -1,0 +1,57 @@
+/// Tunable thresholds governing scan stabilization and locking.
+///
+/// The defaults are tuned for roughly one to two seconds of steady framing
+/// per card. Hosts rarely need to change anything except `autoResume`.
+public nonisolated struct ScannerConfiguration: Sendable {
+    /// Half-life of the exponential decay applied to accumulated votes.
+    /// Consistent fresh reads overtake a stale early leader within ~2×.
+    public var decayHalfLife: Duration = .seconds(1.5)
+
+    /// Accumulated weight a set+number reading needs for an
+    /// `.exactPrinting` lock (≈ 3 consistent confident frames).
+    public var lockThreshold: Double = 2.5
+
+    /// Higher weight demanded when locking on set+number alone
+    /// (`.printingOnly`), because there is no name to cross-check.
+    public var printingOnlyLockThreshold: Double = 4.0
+
+    /// Weight the leading name needs before the name-only fallback can lock.
+    public var nameOnlyLockThreshold: Double = 3.0
+
+    /// The leading collector reading must outweigh the runner-up by this
+    /// factor before any collector-based lock.
+    public var lockLeadRatio: Double = 2.0
+
+    /// Minimum OCR-name ↔ catalog-name similarity to count as agreement
+    /// in the exact-printing rule.
+    public var nameSimilarityFloor: Double = 0.6
+
+    /// Below this similarity, a strong name reading actively contradicts the
+    /// collector reading and vetoes a printing-only lock.
+    public var nameContradictionCeiling: Double = 0.3
+
+    /// Name weight required before its contradiction veto applies.
+    public var contradictionNameWeight: Double = 2.0
+
+    /// A set-coded collector reading at or above this weight suppresses the
+    /// name-only fallback — the collector line is still winning.
+    public var strongCollectorWeight: Double = 1.0
+
+    /// Similarity the best catalog name must reach for a name-only lock.
+    public var nameOnlySimilarityFloor: Double = 0.85
+
+    /// Margin by which the best catalog name must beat the runner-up name.
+    public var nameOnlyLeadMargin: Double = 0.1
+
+    /// How long to wait for a collector-line reading before the name-only
+    /// fallback becomes eligible (older frames have no collector info).
+    public var nameOnlyFallbackDelay: Duration = .seconds(2.5)
+
+    /// Maximum candidates requested from `CardCatalog.candidates(forName:limit:)`.
+    public var nameCandidateLimit: Int = 24
+
+    /// Behavior after a lock. Defaults to auto-resume for stack scanning.
+    public var autoResume: AutoResumeBehavior = .after(.milliseconds(1200))
+
+    public init() {}
+}
