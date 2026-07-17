@@ -53,5 +53,8 @@ public nonisolated struct ScannerConfiguration: Sendable {
     /// Behavior after a lock. Defaults to auto-resume for stack scanning.
     public var autoResume: AutoResumeBehavior = .after(.milliseconds(1200))
 
+    /// Camera-session tunables.
+    public var camera = CameraConfiguration()
+
     public init() {}
 }

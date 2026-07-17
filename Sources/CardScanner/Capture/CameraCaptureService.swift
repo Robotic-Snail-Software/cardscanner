@@ -18,6 +18,7 @@ actor CameraCaptureService {
     private var device: AVCaptureDevice?
     private var frameDelegate: VideoFrameOutputDelegate?
     private var bufferOrientation: CGImagePropertyOrientation = .up
+    private var appliedRotationAngle: CGFloat?
     private var isConfigured = false
 
     /// Connects the session to the preview view; safe to hand to the main actor.
@@ -31,7 +32,11 @@ actor CameraCaptureService {
     /// Configures the session on first use, starts it, and returns the frame
     /// stream. Only the newest frame is buffered — recognition pace is the
     /// effective scan rate, and stale frames are dropped at the source.
-    func startStreaming() throws -> AsyncStream<VideoFrame> {
+    ///
+    /// `bufferSize` is the pixel size of delivered (rotation-applied)
+    /// buffers, for view→buffer region mapping; `nil` when the connection
+    /// couldn't rotate, in which case callers keep the default regions.
+    func startStreaming() throws -> (frames: AsyncStream<VideoFrame>, bufferSize: CGSize?) {
         try configureIfNeeded()
 
         let (stream, continuation) = AsyncStream.makeStream(
@@ -47,7 +52,7 @@ actor CameraCaptureService {
         if session.isRunning == false {
             session.startRunning()
         }
-        return stream
+        return (stream, rotatedBufferSize())
     }
 
     /// Stops the session and ends the frame stream.
@@ -121,6 +126,7 @@ actor CameraCaptureService {
         if connection.isVideoRotationAngleSupported(angle) {
             connection.videoRotationAngle = angle
             bufferOrientation = .up
+            appliedRotationAngle = angle
         } else {
             bufferOrientation = switch angle {
             case 90: .right
@@ -129,6 +135,18 @@ actor CameraCaptureService {
             default: .up
             }
         }
+    }
+
+    /// Pixel size of delivered buffers with connection rotation applied, or
+    /// `nil` when rotation wasn't available.
+    private func rotatedBufferSize() -> CGSize? {
+        guard let device, let angle = appliedRotationAngle else { return nil }
+        let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+        let sensorSize = CGSize(width: CGFloat(dimensions.width), height: CGFloat(dimensions.height))
+        let quarterTurned = angle == 90 || angle == 270
+        return quarterTurned
+            ? CGSize(width: sensorSize.height, height: sensorSize.width)
+            : sensorSize
     }
 
     private func configureDevice(_ device: AVCaptureDevice) {
