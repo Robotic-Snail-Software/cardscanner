@@ -36,9 +36,11 @@ actor RecognitionEngine {
             throw ScannerError.recognitionFailed(String(describing: error))
         }
 
+        let collectorLines = orderedLines(from: collectorObservations)
         return FrameReading(
             name: nameReading(from: nameObservations),
-            collector: collectorReading(from: collectorObservations)
+            collector: collectorReading(fromOrderedLines: collectorLines),
+            collectorLines: collectorLines.map(\.string)
         )
     }
 
@@ -65,16 +67,27 @@ actor RecognitionEngine {
         return FrameReading.NameReading(text: best.name, confidence: best.confidence)
     }
 
-    private func collectorReading(from observations: [RecognizedTextObservation]) -> FrameReading.CollectorReading? {
-        guard observations.isEmpty == false else { return nil }
-        // Deliver lines to the parser in reading order — lower-left-origin
-        // boxes mean the top line has the larger midY.
-        let orderedLines = observations
+    /// Collector-band lines in reading order — lower-left-origin boxes mean
+    /// the top line has the larger midY.
+    private func orderedLines(
+        from observations: [RecognizedTextObservation]
+    ) -> [(string: String, confidence: Double)] {
+        observations
             .sorted { $0.boundingBox.cgRect.midY > $1.boundingBox.cgRect.midY }
-            .compactMap { $0.topCandidates(1).first }
-        guard let info = CollectorLineParser.parse(lines: orderedLines.map(\.string)) else { return nil }
+            .compactMap { observation in
+                observation.topCandidates(1).first.map {
+                    (string: $0.string, confidence: Double($0.confidence))
+                }
+            }
+    }
 
-        let confidence = orderedLines.map { Double($0.confidence) }.reduce(0, +) / Double(orderedLines.count)
+    private func collectorReading(
+        fromOrderedLines lines: [(string: String, confidence: Double)]
+    ) -> FrameReading.CollectorReading? {
+        guard lines.isEmpty == false,
+              let info = CollectorLineParser.parse(lines: lines.map(\.string))
+        else { return nil }
+        let confidence = lines.map(\.confidence).reduce(0, +) / Double(lines.count)
         return FrameReading.CollectorReading(info: info, confidence: confidence)
     }
 }

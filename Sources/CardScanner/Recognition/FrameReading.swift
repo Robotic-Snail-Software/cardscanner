@@ -14,5 +14,9 @@ nonisolated struct FrameReading: Equatable, Sendable {
     var name: NameReading?
     var collector: CollectorReading?
 
+    /// Raw OCR lines from the collector band in reading order, before
+    /// parsing — surfaced for on-device tuning and host debug UIs.
+    var collectorLines: [String] = []
+
     var isEmpty: Bool { name == nil && collector == nil }
 }

@@ -93,7 +93,12 @@ actor CameraCaptureService {
 
         session.beginConfiguration()
         do {
-            session.sessionPreset = .hd1920x1080
+            if configuration.prefersUltraHighResolutionCapture,
+               session.canSetSessionPreset(.hd4K3840x2160) {
+                session.sessionPreset = .hd4K3840x2160
+            } else {
+                session.sessionPreset = .hd1920x1080
+            }
             let input = try AVCaptureDeviceInput(device: device)
             guard session.canAddInput(input) else { throw ScannerError.cameraConfigurationFailed }
             session.addInput(input)

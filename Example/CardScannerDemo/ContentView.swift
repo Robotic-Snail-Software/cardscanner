@@ -47,18 +47,31 @@ struct DemoControlBar: View {
     var onTrustReading: () -> Void
 
     var body: some View {
-        HStack {
-            Text("Catalog: \(catalogCount) cards")
-                .font(.caption)
+        VStack(spacing: 4) {
+            HStack {
+                Text("Catalog: \(catalogCount) cards")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Trust Reading", systemImage: "plus.viewfinder", action: onTrustReading)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(canTrust == false)
+            }
+            Text(debugText)
+                .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
-            Spacer()
-            Button("Trust Reading", systemImage: "plus.viewfinder", action: onTrustReading)
-                .buttonStyle(.borderedProminent)
-                .disabled(canTrust == false)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    /// What Vision read in the collector band on the latest frame.
+    private var debugText: String {
+        let lines = scanner.debugCollectorLines
+        return lines.isEmpty ? "OCR: —" : "OCR: \(lines.joined(separator: " ⏎ "))"
     }
 
     private var canTrust: Bool {

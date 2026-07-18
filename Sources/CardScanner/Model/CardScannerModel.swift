@@ -37,6 +37,10 @@ public final class CardScannerModel {
     /// unavailable, in which case default regions stay in effect).
     private(set) var captureBufferSize: CGSize?
 
+    /// Raw OCR lines from the collector band on the most recent frame,
+    /// before parsing — for tuning and debug overlays.
+    public private(set) var debugCollectorLines: [String] = []
+
     /// Torch control for dim lighting.
     public var isTorchOn = false {
         didSet {
@@ -143,6 +147,7 @@ public final class CardScannerModel {
                 continue // Transient recognition failure; the next frame retries.
             }
 
+            debugCollectorLines = reading.collectorLines
             record(reading)
             decide()
             if pendingLookups.isEmpty == false {
