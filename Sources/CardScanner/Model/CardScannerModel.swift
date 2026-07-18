@@ -55,6 +55,20 @@ public final class CardScannerModel {
         }
     }
 
+    /// Current zoom factor (1 = no zoom). Set via `setZoom(_:)`.
+    public private(set) var zoomFactor: CGFloat = 1
+
+    /// Zooms the camera — for fixed-distance setups (a scanning rig, a
+    /// tripod) where the card can't be brought closer to fill the guide.
+    /// Clamped to 1…8; camera-less platforms ignore it.
+    public func setZoom(_ factor: CGFloat) {
+        zoomFactor = min(max(factor, 1), 8)
+        #if os(iOS)
+        let target = zoomFactor
+        Task { await capture.setZoom(target) }
+        #endif
+    }
+
     /// Fired once per locked card, before any auto-resume pause begins.
     public var onCardLocked: ((ScannedCard) -> Void)?
 

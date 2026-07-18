@@ -62,7 +62,10 @@ actor RecognitionEngine {
         var request = DetectRectanglesRequest()
         request.minimumAspectRatio = 0.5
         request.maximumAspectRatio = 1.0
-        request.minimumSize = 0.25
+        // Loose size floor so a card in a fixed-distance rig still tracks
+        // while the user dials in zoom; the aspect gate below keeps
+        // non-card rectangles out.
+        request.minimumSize = 0.12
         request.minimumConfidence = 0.5
         request.maximumObservations = 4
         request.quadratureToleranceDegrees = 20
@@ -79,7 +82,7 @@ actor RecognitionEngine {
             let pixelAspect = (rect.width * bufferWidth) / (rect.height * bufferHeight)
             // An upright Magic card is ~0.716; allow tilt and perspective.
             guard (0.55...0.90).contains(pixelAspect) else { return nil }
-            guard rect.width * rect.height >= 0.08 else { return nil }
+            guard rect.width * rect.height >= 0.02 else { return nil }
             let score = CGFloat(observation.confidence) - abs(pixelAspect - cardAspect)
             return (rect, score)
         }

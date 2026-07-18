@@ -35,9 +35,11 @@ public struct CardScannerView: View {
 }
 
 #if os(iOS)
-/// The live scanning stack: preview, overlay, lock banner, torch button.
+/// The live scanning stack: preview, overlay, lock banner, torch button,
+/// and pinch-to-zoom for fixed-distance setups.
 struct ScannerContentView: View {
     @Bindable var model: CardScannerModel
+    @State private var zoomAtGestureStart: CGFloat?
 
     var body: some View {
         // No ignoresSafeArea here: the scanner must respect whatever region
@@ -60,10 +62,35 @@ struct ScannerContentView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: isLocked)
+        .contentShape(.rect)
+        .gesture(zoomGesture)
         .overlay(alignment: .topTrailing) {
             TorchButton(isOn: $model.isTorchOn)
                 .padding()
         }
+        .overlay(alignment: .topLeading) {
+            if model.zoomFactor > 1.05 {
+                ZoomIndicator(factor: model.zoomFactor, onReset: resetZoom)
+                    .padding()
+            }
+        }
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                if zoomAtGestureStart == nil {
+                    zoomAtGestureStart = model.zoomFactor
+                }
+                model.setZoom((zoomAtGestureStart ?? 1) * value.magnification)
+            }
+            .onEnded { _ in
+                zoomAtGestureStart = nil
+            }
+    }
+
+    private func resetZoom() {
+        model.setZoom(1)
     }
 
     private var isLocked: Bool {
@@ -76,6 +103,24 @@ struct ScannerContentView: View {
     private var continueAction: (() -> Void)? {
         guard model.configurationRequiresManualResume else { return nil }
         return model.resumeScanning
+    }
+}
+
+/// Shows the active zoom factor; tapping resets to 1×.
+struct ZoomIndicator: View {
+    let factor: CGFloat
+    let onReset: () -> Void
+
+    var body: some View {
+        Button(action: onReset) {
+            Text("\(factor, format: .number.precision(.fractionLength(1)))×")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.35), in: .capsule)
+        }
+        .accessibilityLabel("Reset zoom")
     }
 }
 

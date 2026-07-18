@@ -66,6 +66,21 @@ actor CameraCaptureService {
         }
     }
 
+    /// Applies a zoom factor, clamped to the device's supported range.
+    /// Zoom crops in the ISP, so delivered buffer dimensions — and therefore
+    /// all region mapping — are unchanged.
+    func setZoom(_ factor: CGFloat) {
+        guard let device else { return }
+        do {
+            try device.lockForConfiguration()
+            let upperBound = min(device.maxAvailableVideoZoomFactor, 10)
+            device.videoZoomFactor = min(max(factor, device.minAvailableVideoZoomFactor), upperBound)
+            device.unlockForConfiguration()
+        } catch {
+            // Zoom is best-effort; scanning continues at the current factor.
+        }
+    }
+
     /// Toggles the torch for dim conditions.
     func setTorch(_ isOn: Bool) {
         guard let device, device.hasTorch else { return }
