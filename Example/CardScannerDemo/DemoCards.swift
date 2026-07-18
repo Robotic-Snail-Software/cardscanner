@@ -25,6 +25,8 @@ enum DemoCards {
         "Opt",
         "Negate",
         "Cultivate",
+        "Shock",
+        "Waterknot"
     ].enumerated().map { index, name in
         CatalogPrinting(
             id: "demo-\(index + 1)",

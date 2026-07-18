@@ -124,6 +124,13 @@ public final class CardScannerModel {
         beginNextCard()
     }
 
+    /// Discards memoized catalog answers. Call after mutating the catalog
+    /// (adding cards, syncing) so cached misses don't mask new entries.
+    public func invalidateCatalogCache() {
+        answers = CatalogAnswers()
+        pendingLookups.removeAll()
+    }
+
     // MARK: Pipeline
 
     private var isFailed: Bool {

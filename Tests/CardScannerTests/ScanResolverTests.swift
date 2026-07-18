@@ -171,6 +171,26 @@ struct ScanResolverTests {
         #expect(decision.neededLookups == [.printing(setCode: "MID", collectorNumber: "117")])
     }
 
+    @Test func confirmedMissDoesNotBlockTheNameFallback() {
+        // A strong collector reading that the catalog has confirmed it does
+        // NOT contain (e.g. the host's catalog is incomplete) can never lock,
+        // so a strong matching name must still be able to identify the card.
+        var answers = CatalogAnswers()
+        answers.printings.updateValue(
+            nil,
+            forKey: CatalogAnswers.PrintingKey(setCode: "MID", collectorNumber: "117")
+        )
+        answers.nameCandidates["lightning bolt"] = [midBolt]
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            collectors: [(midReading, 4.5)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock?.confidence == .nameOnly)
+        #expect(decision.lock?.printing == midBolt)
+    }
+
     @Test func ruleCRequestsCandidatesWhenNotFetched() {
         let decision = decide(
             names: [("Lightning Bolt", 3.2)],

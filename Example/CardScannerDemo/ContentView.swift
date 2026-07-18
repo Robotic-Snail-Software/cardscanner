@@ -37,6 +37,9 @@ struct ContentView: View {
     private func trustCurrentReading() {
         guard let candidate = scanner.liveCandidate else { return }
         catalog.trust(candidate)
+        // The scanner has already cached this reading as a catalog miss;
+        // drop the cache so the freshly trusted printing can lock.
+        scanner.invalidateCatalogCache()
     }
 }
 

@@ -126,9 +126,19 @@ nonisolated enum ScanResolver {
     ) -> ScanDecision.Lock? {
         guard let leadName = names.first else { return nil }
 
-        // A live collector line always outranks the fallback.
-        let collectorLineStillWinning = collectors.contains {
-            $0.info.setCode != nil && $0.weight >= configuration.strongCollectorWeight
+        // A live collector line outranks the fallback — unless its lookup
+        // already came back as a confirmed catalog miss, in which case that
+        // reading can never lock and must not hold the name path hostage.
+        let collectorLineStillWinning = collectors.contains { candidate in
+            guard let setCode = candidate.info.setCode,
+                  candidate.weight >= configuration.strongCollectorWeight
+            else { return false }
+            let key = CatalogAnswers.PrintingKey(
+                setCode: setCode,
+                collectorNumber: candidate.info.collectorNumber
+            )
+            if case .some(.none) = answers.printings[key] { return false }
+            return true
         }
         guard collectorLineStillWinning == false else { return nil }
 
