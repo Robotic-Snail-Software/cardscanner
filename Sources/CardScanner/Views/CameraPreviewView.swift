@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 import SwiftUI
 
@@ -67,3 +68,4 @@ struct CameraPreviewView: UIViewRepresentable {
         }
     }
 }
+#endif

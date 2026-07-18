@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 
 /// Adopted by the preview view so the capture session can be attached to its
@@ -5,3 +6,4 @@ import AVFoundation
 @MainActor protocol PreviewTarget {
     func setSession(_ session: AVCaptureSession)
 }
+#endif

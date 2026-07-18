@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 
 /// Bridges AVFoundation's sample-buffer delegate into an `AsyncStream` of
@@ -29,3 +30,4 @@ nonisolated final class VideoFrameOutputDelegate: NSObject, AVCaptureVideoDataOu
         continuation.yield(VideoFrame(pixelBuffer: pixelBuffer, orientation: orientation))
     }
 }
+#endif

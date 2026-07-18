@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 
 /// Hands the capture session to a main-actor preview view without exposing
@@ -19,3 +20,4 @@ nonisolated struct PreviewSource: @unchecked Sendable {
         target.setSession(session)
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 
 /// Owns the `AVCaptureSession` and streams camera frames into the
@@ -196,3 +197,4 @@ actor CameraCaptureService {
         }
     }
 }
+#endif

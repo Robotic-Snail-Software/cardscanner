@@ -15,17 +15,26 @@ public struct CardScannerView: View {
 
     public var body: some View {
         ZStack {
+            #if os(iOS)
             if model.authorization == .denied {
                 CameraPermissionDeniedView()
             } else {
                 ScannerContentView(model: model)
             }
+            #else
+            ContentUnavailableView(
+                "Scanning Not Available",
+                systemImage: "camera.fill",
+                description: Text("Card scanning uses the iPhone camera.")
+            )
+            #endif
         }
         .task { await model.start() }
         .sensoryFeedback(.success, trigger: model.lockCount)
     }
 }
 
+#if os(iOS)
 /// The live scanning stack: preview, overlay, lock banner, torch button.
 struct ScannerContentView: View {
     @Bindable var model: CardScannerModel
@@ -82,3 +91,4 @@ struct TorchButton: View {
             .background(.black.opacity(0.35), in: .circle)
     }
 }
+#endif

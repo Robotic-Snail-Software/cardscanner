@@ -45,11 +45,13 @@ public final class CardScannerModel {
     /// rectangle (versus the on-screen guide fallback).
     public private(set) var isTrackingCard = false
 
-    /// Torch control for dim lighting.
+    /// Torch control for dim lighting. No-op on platforms without capture.
     public var isTorchOn = false {
         didSet {
+            #if os(iOS)
             let isOn = isTorchOn
             Task { await capture.setTorch(isOn) }
+            #endif
         }
     }
 
@@ -58,7 +60,9 @@ public final class CardScannerModel {
 
     private let catalog: any CardCatalog
     private let configuration: ScannerConfiguration
+    #if os(iOS)
     private let capture: CameraCaptureService
+    #endif
     private let engine: RecognitionEngine
     private let clock = ContinuousClock()
 
@@ -72,7 +76,9 @@ public final class CardScannerModel {
     public init(catalog: any CardCatalog, configuration: ScannerConfiguration = ScannerConfiguration()) {
         self.catalog = catalog
         self.configuration = configuration
+        #if os(iOS)
         capture = CameraCaptureService(configuration: configuration.camera)
+        #endif
         engine = RecognitionEngine()
         accumulator = ObservationAccumulator(halfLife: configuration.decayHalfLife)
     }
@@ -81,7 +87,11 @@ public final class CardScannerModel {
 
     /// Requests camera access, starts the session, and processes frames until
     /// the surrounding task is cancelled or `stop()` is called.
+    ///
+    /// On platforms without camera capture (visionOS), fails immediately
+    /// with `.cameraUnavailable`.
     public func start() async {
+        #if os(iOS)
         guard phase == .idle || isFailed else { return }
 
         authorization = await CameraAuthorization.request()
@@ -109,11 +119,16 @@ public final class CardScannerModel {
         if isFailed == false {
             phase = .idle
         }
+        #else
+        phase = .failed(.cameraUnavailable)
+        #endif
     }
 
     /// Ends the frame stream, which unwinds `start()`.
     public func stop() {
+        #if os(iOS)
         Task { await capture.stopStreaming() }
+        #endif
     }
 
     /// After a lock (with `.manual` auto-resume), starts scanning the next card.
@@ -272,8 +287,10 @@ public final class CardScannerModel {
 
     // MARK: Scanner view support
 
+    #if os(iOS)
     /// The preview connector for `CameraPreviewView`.
     var previewSource: PreviewSource { capture.previewSource }
+    #endif
 
     /// True when the host must call `resumeScanning()` after each lock.
     var configurationRequiresManualResume: Bool {
