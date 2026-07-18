@@ -86,7 +86,17 @@ actor RecognitionEngine {
             let score = CGFloat(observation.confidence) - abs(pixelAspect - cardAspect)
             return (rect, score)
         }
-        return candidates.max { $0.score < $1.score }?.rect
+
+        // Card holders and scanning trays are card-shaped rectangles too, and
+        // the card sits INSIDE them — when one plausible rect contains
+        // another, the inner one is the card.
+        let innermost = candidates.filter { candidate in
+            candidates.contains {
+                $0.rect != candidate.rect
+                    && candidate.rect.insetBy(dx: -0.01, dy: -0.01).contains($0.rect)
+            } == false
+        }
+        return innermost.max { $0.score < $1.score }?.rect
     }
 
     private func makeRequest(region: CGRect) -> RecognizeTextRequest {
@@ -132,7 +142,11 @@ actor RecognitionEngine {
         guard lines.isEmpty == false,
               let info = CollectorLineParser.parse(lines: lines.map(\.string))
         else { return nil }
-        let confidence = lines.map(\.confidence).reduce(0, +) / Double(lines.count)
-        return FrameReading.CollectorReading(info: info, confidence: confidence)
+        // Vision under-reports confidence on very small text, but a reading
+        // that survived the parser's structural validity gates is strong
+        // evidence regardless — floor its vote so locks accumulate at the
+        // paced read rate.
+        let visionConfidence = lines.map(\.confidence).reduce(0, +) / Double(lines.count)
+        return FrameReading.CollectorReading(info: info, confidence: max(0.6, visionConfidence))
     }
 }
