@@ -68,10 +68,13 @@ struct DemoControlBar: View {
         .background(.bar)
     }
 
-    /// What Vision read in the collector band on the latest frame.
+    /// What Vision read in the collector band on the latest frame, prefixed
+    /// with whether the bands tracked a detected card (▣) or fell back to
+    /// the guide (□).
     private var debugText: String {
+        let tracking = scanner.isTrackingCard ? "▣" : "□"
         let lines = scanner.debugCollectorLines
-        return lines.isEmpty ? "OCR: —" : "OCR: \(lines.joined(separator: " ⏎ "))"
+        return lines.isEmpty ? "\(tracking) OCR: —" : "\(tracking) OCR: \(lines.joined(separator: " ⏎ "))"
     }
 
     private var canTrust: Bool {

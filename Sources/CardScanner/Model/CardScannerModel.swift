@@ -41,6 +41,10 @@ public final class CardScannerModel {
     /// before parsing — for tuning and debug overlays.
     public private(set) var debugCollectorLines: [String] = []
 
+    /// Whether the last frame's text bands tracked a detected card
+    /// rectangle (versus the on-screen guide fallback).
+    public private(set) var isTrackingCard = false
+
     /// Torch control for dim lighting.
     public var isTorchOn = false {
         didSet {
@@ -148,6 +152,7 @@ public final class CardScannerModel {
             }
 
             debugCollectorLines = reading.collectorLines
+            isTrackingCard = reading.cardDetected
             record(reading)
             decide()
             if pendingLookups.isEmpty == false {

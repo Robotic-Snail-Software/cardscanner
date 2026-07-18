@@ -18,5 +18,9 @@ nonisolated struct FrameReading: Equatable, Sendable {
     /// parsing — surfaced for on-device tuning and host debug UIs.
     var collectorLines: [String] = []
 
+    /// Whether the text bands tracked a detected card rectangle this frame
+    /// (versus falling back to the on-screen guide).
+    var cardDetected = false
+
     var isEmpty: Bool { name == nil && collector == nil }
 }

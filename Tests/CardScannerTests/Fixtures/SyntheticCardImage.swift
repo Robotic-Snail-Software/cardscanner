@@ -29,8 +29,25 @@ nonisolated enum SyntheticCardImage {
         Line(text: "™ & © 2019 Wizards of the Coast", position: CGPoint(x: 560, y: 40), fontSize: 26),
     ]
 
-    /// Draws the lines onto a white pixel buffer.
-    static func render(_ lines: [Line]) -> CVPixelBuffer? {
+    /// The realistic failure scene: the card sits on a desk, smaller than
+    /// (and below) where the on-screen guide assumes it, with note-paper
+    /// text above it. Guide-anchored bands read the notes and the desk;
+    /// only card tracking reads the card.
+    static let cardOnDeskFrame = CGRect(x: 146, y: 200, width: 787, height: 1100)
+
+    static let bladebackSliverOnDesk: [Line] = [
+        Line(text: "HTML Notes", position: CGPoint(x: 300, y: 1450), fontSize: 48),
+        Line(text: "Bladeback Sliver", position: CGPoint(x: 190, y: 1180), fontSize: 40),
+        Line(text: "Creature — Sliver", position: CGPoint(x: 190, y: 700), fontSize: 32),
+        Line(text: "119/254 C", position: CGPoint(x: 170, y: 300), fontSize: 24),
+        Line(text: "MH1 • EN Svetlin Velinov", position: CGPoint(x: 170, y: 255), fontSize: 24),
+        Line(text: "2/2", position: CGPoint(x: 800, y: 290), fontSize: 26),
+        Line(text: "™ & © 2019 Wizards of the Coast", position: CGPoint(x: 480, y: 215), fontSize: 16),
+    ]
+
+    /// Draws the lines onto a pixel buffer — a plain white page, or, when
+    /// `cardFrame` is given, a bordered white card on a gray desk.
+    static func render(_ lines: [Line], cardFrame: CGRect? = nil) -> CVPixelBuffer? {
         var pixelBuffer: CVPixelBuffer?
         let attributes = [
             kCVPixelBufferCGImageCompatibilityKey: true,
@@ -60,8 +77,26 @@ nonisolated enum SyntheticCardImage {
                 | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
 
-        context.setFillColor(CGColor(gray: 1, alpha: 1))
-        context.fill(CGRect(origin: .zero, size: size))
+        if let cardFrame {
+            context.setFillColor(CGColor(gray: 0.4, alpha: 1))
+            context.fill(CGRect(origin: .zero, size: size))
+            let cardPath = CGPath(
+                roundedRect: cardFrame,
+                cornerWidth: 30,
+                cornerHeight: 30,
+                transform: nil
+            )
+            context.addPath(cardPath)
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fillPath()
+            context.addPath(cardPath)
+            context.setStrokeColor(CGColor(gray: 0, alpha: 1))
+            context.setLineWidth(6)
+            context.strokePath()
+        } else {
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(CGRect(origin: .zero, size: size))
+        }
 
         for line in lines {
             let font = CTFontCreateWithName("Helvetica" as CFString, line.fontSize, nil)

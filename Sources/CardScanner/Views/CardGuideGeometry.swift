@@ -51,6 +51,29 @@ nonisolated enum CardGuideGeometry {
         )
     }
 
+    /// Title band derived from a detected card rectangle in Vision space
+    /// (lower-left origin — the card's top is its `maxY` side). Same
+    /// proportions as `nameBand(inGuide:)`.
+    static func visionNameBand(inCard card: CGRect) -> CGRect {
+        CGRect(
+            x: card.minX + card.width * 0.03,
+            y: card.maxY - card.height * 0.145,
+            width: card.width * 0.94,
+            height: card.height * 0.12
+        )
+    }
+
+    /// Collector band derived from a detected card rectangle in Vision
+    /// space. Same proportions as `collectorBand(inGuide:)`.
+    static func visionCollectorBand(inCard card: CGRect) -> CGRect {
+        CGRect(
+            x: card.minX + card.width * 0.01,
+            y: card.minY + card.height * 0.005,
+            width: card.width * 0.70,
+            height: card.height * 0.12
+        )
+    }
+
     /// Maps a rect in view coordinates (top-left origin) to a normalized
     /// Vision region (lower-left origin) of an aspect-filled capture buffer.
     ///

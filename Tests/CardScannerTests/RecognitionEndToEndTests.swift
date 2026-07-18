@@ -34,4 +34,24 @@ struct RecognitionEndToEndTests {
         #expect(reading.collector?.info.totalInSet == 254)
         #expect(reading.collector?.info.languageCode == "EN")
     }
+
+    @Test func tracksACardThatDoesNotFillTheGuide() async throws {
+        // Reproduces the real failure scene: card on a desk, smaller than
+        // and below where the guide assumes it, with note-paper text above.
+        // Rectangle detection must re-anchor both bands onto the card —
+        // guide-anchored bands would read "HTML Notes" and blank desk.
+        let pixelBuffer = try #require(SyntheticCardImage.render(
+            SyntheticCardImage.bladebackSliverOnDesk,
+            cardFrame: SyntheticCardImage.cardOnDeskFrame
+        ))
+
+        let engine = RecognitionEngine(regions: .default)
+        let reading = try await engine.read(VideoFrame(pixelBuffer: pixelBuffer, orientation: .up))
+
+        #expect(reading.cardDetected)
+        #expect(reading.name?.text == "Bladeback Sliver")
+        #expect(reading.collector?.info.setCode == "MH1")
+        #expect(reading.collector?.info.collectorNumber == "119")
+        #expect(reading.collector?.info.totalInSet == 254)
+    }
 }
