@@ -82,11 +82,17 @@ actor CameraCaptureService {
     private func configureIfNeeded() throws {
         guard isConfigured == false else { return }
 
-        guard let device = AVCaptureDevice.default(
-            .builtInWideAngleCamera,
-            for: .video,
+        // Prefer a virtual multi-camera device: filling the card guide puts
+        // the card closer than the wide lens's minimum focus distance, and
+        // only virtual devices auto-switch to the ultra-wide for macro (the
+        // same behavior as the system Camera app). Pinning the bare wide
+        // camera means close cards can never be in focus.
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInTripleCamera, .builtInDualWideCamera, .builtInWideAngleCamera],
+            mediaType: .video,
             position: .back
-        ) else {
+        )
+        guard let device = discovery.devices.first else {
             throw ScannerError.cameraUnavailable
         }
         self.device = device
@@ -157,6 +163,15 @@ actor CameraCaptureService {
     private func configureDevice(_ device: AVCaptureDevice) {
         do {
             try device.lockForConfiguration()
+            if device.isVirtualDevice {
+                // Unrestricted constituent switching lets the device fall
+                // back to the ultra-wide (macro) when the card is closer
+                // than the wide lens can focus.
+                device.setPrimaryConstituentDeviceSwitchingBehavior(
+                    .auto,
+                    restrictedSwitchingBehaviorConditions: []
+                )
+            }
             if device.isFocusModeSupported(.continuousAutoFocus) {
                 device.focusMode = .continuousAutoFocus
             }
@@ -164,7 +179,9 @@ actor CameraCaptureService {
                 device.autoFocusRangeRestriction = .near
             }
             if device.isSmoothAutoFocusSupported {
-                device.isSmoothAutoFocusEnabled = true
+                // Smooth AF trades refocus speed for cinematic focus pulls —
+                // the wrong trade for scanning; snappy refocus wins.
+                device.isSmoothAutoFocusEnabled = false
             }
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
