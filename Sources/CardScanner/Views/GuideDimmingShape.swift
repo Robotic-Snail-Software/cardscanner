@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The full-screen dimming layer with a card-shaped hole over the guide.
 /// Filled with `FillStyle(eoFill: true)` so the guide stays clear.
-struct GuideDimmingShape: Shape {
+nonisolated struct GuideDimmingShape: Shape {
     var guide: CGRect
     var cornerRadius: CGFloat
 
