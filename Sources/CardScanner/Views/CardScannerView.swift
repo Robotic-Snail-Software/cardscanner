@@ -40,16 +40,17 @@ struct ScannerContentView: View {
     @Bindable var model: CardScannerModel
 
     var body: some View {
+        // No ignoresSafeArea here: the scanner must respect whatever region
+        // its host embeds it in (e.g. under a navigation bar). Full-screen
+        // hosts can apply the modifier themselves.
         ZStack(alignment: .bottom) {
             CameraPreviewView(
                 source: model.previewSource,
                 bufferSize: model.captureBufferSize,
                 onRegionsChange: model.updateScanRegions
             )
-            .ignoresSafeArea()
 
             ScannerGuideOverlay(candidate: model.liveCandidate, isLocked: isLocked)
-                .ignoresSafeArea()
 
             if case .locked(let card) = model.phase {
                 ScanResultChip(card: card, onContinue: continueAction)

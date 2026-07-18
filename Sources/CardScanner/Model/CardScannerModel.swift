@@ -162,13 +162,23 @@ public final class CardScannerModel {
     }
 
     private func processFrames(_ frames: AsyncStream<VideoFrame>) async {
+        var lastReadFinished: ContinuousClock.Instant?
         for await frame in frames {
             guard Task.isCancelled == false else { break }
             guard phase == .searching else { continue }
 
+            // Pace recognition: drop frames that arrive before the interval
+            // has passed, so the Vision pipeline idles between passes
+            // instead of running at 100% duty cycle and cooking the device.
+            if let lastReadFinished,
+               clock.now - lastReadFinished < configuration.recognitionInterval {
+                continue
+            }
+
             let reading: FrameReading
             do {
                 reading = try await engine.read(frame)
+                lastReadFinished = clock.now
             } catch {
                 continue // Transient recognition failure; the next frame retries.
             }
