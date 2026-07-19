@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import Observation
 #if os(iOS)
+import AudioToolbox
 import UIKit
 #endif
 
@@ -134,6 +135,12 @@ public final class CardScannerModel {
         // screen awake for the session, restored on any exit path.
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = false }
+
+        // Zoom set before the session existed (e.g. a persisted level)
+        // applies now that the device is configured.
+        if zoomFactor != 1 {
+            await capture.setZoom(zoomFactor)
+        }
 
         beginNextCard()
         await processFrames(frames)
@@ -357,6 +364,11 @@ public final class CardScannerModel {
         lastLockedIdentity = lock.printing?.id ?? lock.name
         lastLockTime = clock.now
         cardLeftFrameSinceLock = false
+        #if os(iOS)
+        if configuration.playsLockSound {
+            AudioServicesPlaySystemSound(1057) // short "tink"
+        }
+        #endif
         onCardLocked?(card)
 
         if case .after(let delay) = configuration.autoResume {

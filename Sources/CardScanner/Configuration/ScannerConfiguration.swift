@@ -73,6 +73,10 @@ public nonisolated struct ScannerConfiguration: Sendable {
     /// thermal budget is actually won.
     public var idleRecognitionInterval: Duration = .milliseconds(400)
 
+    /// Play a short confirmation sound on each lock. Heads-down scanning
+    /// (a rig, a stack) often can't feel the haptic; audio carries.
+    public var playsLockSound = true
+
     /// Behavior after a lock. Defaults to auto-resume for stack scanning.
     public var autoResume: AutoResumeBehavior = .after(.milliseconds(1200))
 
