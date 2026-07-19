@@ -1,6 +1,9 @@
 import CoreGraphics
 import Foundation
 import Observation
+#if os(iOS)
+import UIKit
+#endif
 
 /// The scanner's public face: an observable model that owns the whole
 /// pipeline — camera, recognition, vote accumulation, catalog verification,
@@ -126,6 +129,11 @@ public final class CardScannerModel {
             phase = .failed((error as? ScannerError) ?? .cameraConfigurationFailed)
             return
         }
+
+        // Hands-free scanning (a rig, a stack) means no touches — keep the
+        // screen awake for the session, restored on any exit path.
+        UIApplication.shared.isIdleTimerDisabled = true
+        defer { UIApplication.shared.isIdleTimerDisabled = false }
 
         beginNextCard()
         await processFrames(frames)
