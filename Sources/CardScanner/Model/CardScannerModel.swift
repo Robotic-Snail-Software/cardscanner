@@ -86,6 +86,9 @@ public final class CardScannerModel {
     private var cardScanStart: ContinuousClock.Instant?
     private var resumeTask: Task<Void, Never>?
     private var consecutiveCatalogFailures = 0
+    private var lastLockedIdentity: String?
+    private var lastLockTime: ContinuousClock.Instant?
+    private var cardLeftFrameSinceLock = true
 
     public init(catalog: any CardCatalog, configuration: ScannerConfiguration = ScannerConfiguration()) {
         self.catalog = catalog
@@ -203,6 +206,9 @@ public final class CardScannerModel {
 
             debugCollectorLines = reading.collectorLines
             isTrackingCard = reading.cardDetected
+            if reading.cardDetected == false {
+                cardLeftFrameSinceLock = true
+            }
             record(reading)
             decide()
             if pendingLookups.isEmpty == false {
@@ -243,6 +249,17 @@ public final class CardScannerModel {
         pendingLookups = decision.neededLookups
 
         if let lock = decision.lock {
+            // Don't double-count a card that just locked and never left the
+            // frame — auto-resume would otherwise re-scan it in place. A
+            // brief absence (the hand swapping cards) re-arms it, as does a
+            // deliberate lingering pause.
+            let identity = lock.printing?.id ?? lock.name
+            let lingeredLongEnough = lastLockTime.map { clock.now - $0 > .seconds(5) } ?? true
+            if identity == lastLockedIdentity,
+               cardLeftFrameSinceLock == false,
+               lingeredLongEnough == false {
+                return
+            }
             finalize(lock)
         }
     }
@@ -329,6 +346,9 @@ public final class CardScannerModel {
         phase = .locked(card)
         liveCandidate = nil
         lockCount += 1
+        lastLockedIdentity = lock.printing?.id ?? lock.name
+        lastLockTime = clock.now
+        cardLeftFrameSinceLock = false
         onCardLocked?(card)
 
         if case .after(let delay) = configuration.autoResume {

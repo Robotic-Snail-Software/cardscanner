@@ -188,29 +188,45 @@ nonisolated enum CollectorLineParser {
         var rawSlotLength: Int
     }
 
-    /// Matches a whole line of the shape `number[suffix][/total] [rarity]`.
+    /// Matches a whole line of the shape `number[suffix][/total] [rarity]`,
+    /// or the 2024+ layout `rarity number[suffix]` (e.g. `"R 0017"`).
     private static func parseNumberLine(_ line: String) -> NumberLine? {
-        let pattern = #/
+        let numberFirst = #/
             (?<num>[0-9DOQILSB|oqils]{1,4})(?<suffix>[a-e★†]?)
             (?:\/(?<total>[0-9DOQILSB|oqils]{1,4}))?
             (?:\s+(?<rarity>[CULRMSTP]))?
         /#
-        guard let match = line.wholeMatch(of: pattern),
-              let number = canonicalNumber(slot: match.num, suffix: match.suffix)
-        else { return nil }
-
-        var total: Int?
-        if let totalSlot = match.total {
-            guard let validated = validatedTotal(totalSlot, numerator: number.value) else { return nil }
-            total = validated
+        if let match = line.wholeMatch(of: numberFirst),
+           let number = canonicalNumber(slot: match.num, suffix: match.suffix) {
+            var total: Int?
+            if let totalSlot = match.total {
+                guard let validated = validatedTotal(totalSlot, numerator: number.value) else { return nil }
+                total = validated
+            }
+            return NumberLine(
+                canonical: number.canonical,
+                value: number.value,
+                total: total,
+                rarity: match.rarity.flatMap(\.first),
+                rawSlotLength: match.num.count
+            )
         }
-        return NumberLine(
-            canonical: number.canonical,
-            value: number.value,
-            total: total,
-            rarity: match.rarity.flatMap(\.first),
-            rawSlotLength: match.num.count
-        )
+
+        let rarityFirst = #/
+            (?<rarity>[CULRMSTP])\s+
+            (?<num>[0-9DOQILSB|oqils]{1,4})(?<suffix>[a-e★†]?)
+        /#
+        if let match = line.wholeMatch(of: rarityFirst),
+           let number = canonicalNumber(slot: match.num, suffix: match.suffix) {
+            return NumberLine(
+                canonical: number.canonical,
+                value: number.value,
+                total: nil,
+                rarity: match.rarity.first,
+                rawSlotLength: match.num.count
+            )
+        }
+        return nil
     }
 
     /// Matches a line beginning `SET • LANG`, tolerating bullet variants

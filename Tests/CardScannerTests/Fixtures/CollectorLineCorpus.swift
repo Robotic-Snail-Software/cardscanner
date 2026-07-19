@@ -142,12 +142,22 @@ nonisolated enum CollectorLineCorpus {
             lines: ["1694"],
             expected: CollectorInfo(collectorNumber: "1694", setCode: nil, totalInSet: nil, languageCode: nil, rarityLetter: nil)
         ),
+        // 2024+ layout: rarity precedes the zero-padded number, no fraction.
+        CollectorLineCase(
+            lines: ["R 0017", "BLC • EN"],
+            expected: CollectorInfo(collectorNumber: "17", setCode: "BLC", totalInSet: nil, languageCode: "EN", rarityLetter: "R")
+        ),
+        CollectorLineCase(
+            lines: ["U 0203"],
+            expected: CollectorInfo(collectorNumber: "203", setCode: nil, totalInSet: nil, languageCode: nil, rarityLetter: "U")
+        ),
     ]
 
     static let rejected: [CollectorLineRejection] = [
         CollectorLineRejection(lines: ["2/2"], reason: "power/toughness"),
         CollectorLineRejection(lines: ["13/13"], reason: "power/toughness"),
         CollectorLineRejection(lines: ["1997"], reason: "standalone year"),
+        CollectorLineRejection(lines: ["C 1997"], reason: "rarity-prefixed year"),
         CollectorLineRejection(lines: ["EN"], reason: "bare language code"),
         CollectorLineRejection(lines: ["MID • EN"], reason: "set code without collector number"),
         CollectorLineRejection(lines: ["WOTC EN"], reason: "denylisted set code, no number"),
