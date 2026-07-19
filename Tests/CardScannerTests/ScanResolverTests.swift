@@ -99,6 +99,40 @@ struct ScanResolverTests {
         #expect(decision.lock?.confidence == .exactPrinting)
     }
 
+    @Test func foreignLanguageCardLocksExactWithoutNameAgreement() {
+        // A Japanese card's title is unreadable to the English recognizer,
+        // but its set+number+language line is language-independent.
+        let foreignReading = CollectorInfo(
+            collectorNumber: "117",
+            setCode: "MID",
+            languageCode: "JA"
+        )
+        var answers = CatalogAnswers()
+        answers.printings[CatalogAnswers.PrintingKey(setCode: "MID", collectorNumber: "117")] = midBolt
+        let decision = decide(
+            names: [("稲妻", 1.0)],
+            collectors: [(foreignReading, 2.2)],
+            answers: answers
+        )
+        #expect(decision.lock?.confidence == .exactPrinting)
+        #expect(decision.lock?.name == "Lightning Bolt")
+    }
+
+    @Test func foreignLanguageStillNeedsTheWeightThreshold() {
+        let foreignReading = CollectorInfo(
+            collectorNumber: "117",
+            setCode: "MID",
+            languageCode: "DE"
+        )
+        var answers = CatalogAnswers()
+        answers.printings[CatalogAnswers.PrintingKey(setCode: "MID", collectorNumber: "117")] = midBolt
+        let decision = decide(
+            collectors: [(foreignReading, 1.2)],
+            answers: answers
+        )
+        #expect(decision.lock == nil)
+    }
+
     // MARK: Rule B — printing only
 
     @Test func ruleBLocksWithoutANameAtHigherWeight() {

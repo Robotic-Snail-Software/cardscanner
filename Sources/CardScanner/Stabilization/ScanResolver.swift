@@ -109,6 +109,19 @@ nonisolated enum ScanResolver {
             NameMatcher.similarity(ocrName: $0.name, catalogName: printing.name)
         }
 
+        // Non-English cards print a language token on the collector line but
+        // a title the English recognizer can't read — the catalog stores
+        // English names, so the name cross-check can never agree. The
+        // catalog-verified set+number (which is language-independent) locks
+        // on its own at the standard threshold.
+        let isForeignLanguage = leader.info.languageCode.map { $0 != "EN" } ?? false
+        if isForeignLanguage {
+            if leader.weight >= configuration.lockThreshold, hasClearLead {
+                return ScanDecision.Lock(name: printing.name, printing: printing, confidence: .exactPrinting)
+            }
+            return nil
+        }
+
         if let similarity, similarity >= configuration.nameSimilarityFloor {
             // Rule A: the name agrees with the resolved printing.
             if leader.weight >= configuration.lockThreshold, hasClearLead {

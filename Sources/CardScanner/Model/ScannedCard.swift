@@ -25,4 +25,22 @@ public nonisolated struct ScannedCard: Identifiable, Equatable, Sendable {
 
     /// Candidate printings for `.nameOnly` results, for host picker UIs.
     public var alternates: [CatalogPrinting]
+
+    public init(
+        id: UUID = UUID(),
+        catalogID: String?,
+        name: String,
+        setCode: String?,
+        collectorNumber: String?,
+        confidence: ScanConfidence,
+        alternates: [CatalogPrinting] = []
+    ) {
+        self.id = id
+        self.catalogID = catalogID
+        self.name = name
+        self.setCode = setCode
+        self.collectorNumber = collectorNumber
+        self.confidence = confidence
+        self.alternates = alternates
+    }
 }
