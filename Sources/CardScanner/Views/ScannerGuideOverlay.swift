@@ -48,13 +48,18 @@ struct GuideCaption: View {
 
     private var captionText: String {
         guard let candidate else { return String(localized: "Center the card in the frame") }
-        if candidate.needsAlignmentHint {
+        switch candidate.hint {
+        case .checkAlignment:
             // The read itself is strong — say what was read so a catalog gap
             // isn't mistaken for a framing problem.
             if let setCode = candidate.setCode, let number = candidate.collectorNumber {
                 return String(localized: "Read \(setCode) \(number) — not in catalog")
             }
             return String(localized: "No match — adjust framing")
+        case .needsMoreLight:
+            return String(localized: "Small print unreadable — try the torch")
+        case nil:
+            break
         }
         var parts: [String] = []
         if let name = candidate.name {

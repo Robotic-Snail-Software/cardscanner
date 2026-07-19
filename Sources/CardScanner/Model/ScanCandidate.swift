@@ -13,7 +13,6 @@ public nonisolated struct ScanCandidate: Equatable, Sendable {
     /// Progress toward the applicable lock threshold, 0…1.
     public var progress: Double
 
-    /// True when a strong reading keeps missing the catalog — the user
-    /// should adjust framing.
-    public var needsAlignmentHint: Bool
+    /// A user-correctable problem detected this pass, if any.
+    public var hint: ScanHint?
 }

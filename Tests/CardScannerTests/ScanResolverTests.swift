@@ -235,8 +235,52 @@ struct ScanResolverTests {
             answers: answers,
             elapsed: .seconds(3)
         )
+        // A weakly-read number pins the printing but isn't independent
+        // confirmation — the lock stays name-grade.
         #expect(decision.lock?.confidence == .nameOnly)
         #expect(decision.lock?.printing == reprint, "the bare number singles out the printing")
+    }
+
+    @Test func confidentBareNumberPromotesNameMatchToExact() {
+        let reprint = CatalogPrinting(
+            id: "uuid-clb-187",
+            name: "Lightning Bolt",
+            setCode: "CLB",
+            collectorNumber: "187"
+        )
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt, reprint]
+        let bareNumber = CollectorInfo(collectorNumber: "187", setCode: nil)
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            collectors: [(bareNumber, 1.4)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        // Name match + confidently-read agreeing number = two independent
+        // confirmations, same strength as the set-code path.
+        #expect(decision.lock?.confidence == .exactPrinting)
+        #expect(decision.lock?.printing == reprint)
+    }
+
+    @Test func persistentlyUnreadCollectorLineHintsMoreLight() {
+        let decision = decide(
+            names: [("Lightning Bolt", 1.5)],
+            collectors: [],
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock == nil)
+        #expect(decision.hint == .needsMoreLight)
+    }
+
+    @Test func noLightHintWhileCollectorReadsArrive() {
+        let decision = decide(
+            names: [("Lightning Bolt", 1.5)],
+            collectors: [(midReading, 0.5)],
+            answers: answersWithHit(),
+            elapsed: .seconds(3)
+        )
+        #expect(decision.hint == nil)
     }
 
     @Test func ruleCRejectsANarrowWinOverASiblingName() {

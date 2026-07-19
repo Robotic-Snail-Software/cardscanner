@@ -238,7 +238,7 @@ public final class CardScannerModel {
             setCode: decision.leadingCollector?.setCode,
             collectorNumber: decision.leadingCollector?.collectorNumber,
             progress: decision.progress,
-            needsAlignmentHint: decision.hint == .checkAlignment
+            hint: decision.hint
         )
         pendingLookups = decision.neededLookups
 

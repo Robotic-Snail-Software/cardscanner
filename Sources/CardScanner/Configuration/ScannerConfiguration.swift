@@ -49,7 +49,9 @@ public nonisolated struct ScannerConfiguration: Sendable {
 
     /// How long to wait for a collector-line reading before the name-only
     /// fallback becomes eligible (older frames have no collector info).
-    public var nameOnlyFallbackDelay: Duration = .seconds(2)
+    /// Short enough that fallback locks still fit a fast stack-scanning
+    /// rhythm; strong set-coded readings suppress the fallback regardless.
+    public var nameOnlyFallbackDelay: Duration = .milliseconds(1200)
 
     /// Maximum candidates requested from `CardCatalog.candidates(forName:limit:)`.
     public var nameCandidateLimit: Int = 24

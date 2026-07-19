@@ -17,13 +17,6 @@ nonisolated struct ScanDecision: Equatable, Sendable {
         var alternates: [CatalogPrinting] = []
     }
 
-    /// User-facing guidance when evidence is strong but unusable.
-    enum Hint: Equatable, Sendable {
-        /// A collector reading keeps winning but matches nothing in the
-        /// catalog — the frame is probably misaligned or misread.
-        case checkAlignment
-    }
-
     /// Catalog work the model must perform before the resolver can progress.
     enum Lookup: Hashable, Sendable {
         case printing(setCode: String, collectorNumber: String)
@@ -34,6 +27,6 @@ nonisolated struct ScanDecision: Equatable, Sendable {
     var progress: Double = 0
     var leadingName: String?
     var leadingCollector: CollectorInfo?
-    var hint: Hint?
+    var hint: ScanHint?
     var neededLookups: [Lookup] = []
 }

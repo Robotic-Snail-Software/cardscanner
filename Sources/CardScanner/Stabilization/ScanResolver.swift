@@ -50,6 +50,15 @@ nonisolated enum ScanResolver {
             decision.progress = 1
             return decision
         }
+
+        // The title reads but the small collector print never has — the
+        // classic dim-lighting signature; the torch usually fixes it.
+        if decision.hint == nil,
+           elapsed >= .seconds(2),
+           let leadName = names.first, leadName.weight >= 1,
+           collectors.isEmpty {
+            decision.hint = .needsMoreLight
+        }
         return decision
     }
 
@@ -162,10 +171,18 @@ nonisolated enum ScanResolver {
             configuration: configuration
         ) else { return nil }
 
+        let resolution = resolvedPrinting(
+            among: winner.printings,
+            collectors: collectors,
+            configuration: configuration
+        )
+        // A confidently-read bare collector number agreeing with the matched
+        // name is two independent confirmations — exact-grade, same as a
+        // set-code path lock.
         return ScanDecision.Lock(
             name: winner.name,
-            printing: resolvedPrinting(among: winner.printings, collectors: collectors),
-            confidence: .nameOnly,
+            printing: resolution?.printing,
+            confidence: resolution?.confirmedByNumber == true ? .exactPrinting : .nameOnly,
             alternates: winner.printings
         )
     }
@@ -189,18 +206,25 @@ nonisolated enum ScanResolver {
         return (best.name, printings.sorted { ($0.setCode, $0.collectorNumber) < ($1.setCode, $1.collectorNumber) })
     }
 
-    /// Pins a specific printing for a name-only lock when possible: a bare
-    /// collector-number reading (no set code, as printed on older frames)
-    /// that matches exactly one candidate printing settles it; otherwise a
-    /// name with a single printing is unambiguous by itself.
+    /// Pins a specific printing for a name-matched lock when possible: a
+    /// bare collector-number reading (no set code, as printed on older
+    /// frames) that matches exactly one candidate printing settles it;
+    /// otherwise a name with a single printing is unambiguous by itself.
+    /// `confirmedByNumber` is true only when the agreeing number was itself
+    /// confidently read (enough accumulated weight), making the lock
+    /// exact-grade rather than name-grade.
     private static func resolvedPrinting(
         among printings: [CatalogPrinting],
-        collectors: [(info: CollectorInfo, weight: Double)]
-    ) -> CatalogPrinting? {
-        if let bareNumber = collectors.first(where: { $0.info.setCode == nil })?.info.collectorNumber {
-            let numberMatches = printings.filter { $0.collectorNumber == bareNumber }
-            if numberMatches.count == 1 { return numberMatches[0] }
+        collectors: [(info: CollectorInfo, weight: Double)],
+        configuration: ScannerConfiguration
+    ) -> (printing: CatalogPrinting, confirmedByNumber: Bool)? {
+        if let bare = collectors.first(where: { $0.info.setCode == nil }) {
+            let numberMatches = printings.filter { $0.collectorNumber == bare.info.collectorNumber }
+            if numberMatches.count == 1 {
+                let confident = bare.weight >= configuration.strongCollectorWeight
+                return (numberMatches[0], confident)
+            }
         }
-        return printings.count == 1 ? printings[0] : nil
+        return printings.count == 1 ? (printings[0], false) : nil
     }
 }
