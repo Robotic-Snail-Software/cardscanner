@@ -52,26 +52,39 @@ nonisolated enum CardGuideGeometry {
     }
 
     /// Title band derived from a detected card rectangle in Vision space
-    /// (lower-left origin — the card's top is its `maxY` side). Same
-    /// proportions as `nameBand(inGuide:)`.
+    /// (lower-left origin — the card's top is its `maxY` side).
+    ///
+    /// Detection sometimes returns the card's printed *inner frame* rather
+    /// than its outer edge (high-contrast on white-frame cards), so the
+    /// band extends slightly beyond the rect to keep the title covered
+    /// either way.
     static func visionNameBand(inCard card: CGRect) -> CGRect {
-        CGRect(
-            x: card.minX + card.width * 0.03,
-            y: card.maxY - card.height * 0.145,
-            width: card.width * 0.94,
-            height: card.height * 0.12
+        clampedToUnitSquare(
+            CGRect(
+                x: card.minX + card.width * 0.03,
+                y: card.maxY - card.height * 0.135,
+                width: card.width * 0.94,
+                height: card.height * 0.17
+            )
         )
     }
 
     /// Collector band derived from a detected card rectangle in Vision
-    /// space. Same proportions as `collectorBand(inGuide:)`.
+    /// space. Extends below the rect's bottom edge: when detection returns
+    /// the inner frame, the collector line sits *outside* it on the border.
     static func visionCollectorBand(inCard card: CGRect) -> CGRect {
-        CGRect(
-            x: card.minX + card.width * 0.01,
-            y: card.minY + card.height * 0.005,
-            width: card.width * 0.70,
-            height: card.height * 0.12
+        clampedToUnitSquare(
+            CGRect(
+                x: card.minX + card.width * 0.01,
+                y: card.minY - card.height * 0.07,
+                width: card.width * 0.70,
+                height: card.height * 0.19
+            )
         )
+    }
+
+    private static func clampedToUnitSquare(_ rect: CGRect) -> CGRect {
+        rect.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
     }
 
     /// Maps a rect in view coordinates (top-left origin) to a normalized

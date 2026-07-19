@@ -87,16 +87,32 @@ actor RecognitionEngine {
             return (rect, score)
         }
 
-        // Card holders and scanning trays are card-shaped rectangles too, and
-        // the card sits INSIDE them — when one plausible rect contains
-        // another, the inner one is the card.
-        let innermost = candidates.filter { candidate in
-            candidates.contains {
-                $0.rect != candidate.rect
-                    && candidate.rect.insetBy(dx: -0.01, dy: -0.01).contains($0.rect)
+        // Two kinds of concentric detections, opposite resolutions:
+        // - A tray/holder opening around the card: much larger than the
+        //   contained rect → prefer the INNER (the card).
+        // - The card's printed inner frame inside its outer edge (high
+        //   contrast on white-frame cards): nearly the same size → prefer
+        //   the OUTER (the true card edge), or bands land on rules text.
+        let sameCardAreaRatio = 0.7
+        let withoutContainers = candidates.filter { candidate in
+            candidates.contains { inner in
+                inner.rect != candidate.rect
+                    && candidate.rect.insetBy(dx: -0.01, dy: -0.01).contains(inner.rect)
+                    && area(inner.rect) < sameCardAreaRatio * area(candidate.rect)
             } == false
         }
-        return innermost.max { $0.score < $1.score }?.rect
+        let withoutInnerFrames = withoutContainers.filter { candidate in
+            withoutContainers.contains { outer in
+                outer.rect != candidate.rect
+                    && outer.rect.insetBy(dx: -0.01, dy: -0.01).contains(candidate.rect)
+                    && area(candidate.rect) >= sameCardAreaRatio * area(outer.rect)
+            } == false
+        }
+        return withoutInnerFrames.max { $0.score < $1.score }?.rect
+    }
+
+    private func area(_ rect: CGRect) -> CGFloat {
+        rect.width * rect.height
     }
 
     private func makeRequest(region: CGRect) -> RecognizeTextRequest {
