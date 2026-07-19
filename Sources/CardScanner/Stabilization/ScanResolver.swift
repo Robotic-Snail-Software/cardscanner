@@ -95,7 +95,13 @@ nonisolated enum ScanResolver {
             return nil
         }
 
-        let runnerWeight = collectors.dropFirst().first?.weight ?? 0
+        // The lead-ratio veto exists for genuine ambiguity between different
+        // cards. A runner-up that is just an OCR misread of the leader —
+        // same number with a confusable set code, or a bare-number echo —
+        // is the same card and must not block the lock.
+        let runnerWeight = collectors.dropFirst().first { candidate in
+            isConfusionSibling(candidate.info, of: leader.info) == false
+        }?.weight ?? 0
         let hasClearLead = runnerWeight == 0
             || leader.weight / runnerWeight >= configuration.lockLeadRatio
         let leadName = names.first
@@ -123,6 +129,16 @@ nonisolated enum ScanResolver {
         return nil
     }
 
+    /// Whether `candidate` is plausibly the same physical reading as
+    /// `leader`: an identical collector number with a confusable (or absent)
+    /// set code.
+    private static func isConfusionSibling(_ candidate: CollectorInfo, of leader: CollectorInfo) -> Bool {
+        guard candidate.collectorNumber == leader.collectorNumber else { return false }
+        guard let candidateSet = candidate.setCode else { return true }
+        guard let leaderSet = leader.setCode else { return false }
+        return SetCodeRepair.areConfusable(candidateSet, leaderSet)
+    }
+
     // MARK: Name-only fallback (rule C)
 
     private static func nameOnlyLock(
@@ -135,12 +151,13 @@ nonisolated enum ScanResolver {
     ) -> ScanDecision.Lock? {
         guard let leadName = names.first else { return nil }
 
-        // A live collector line outranks the fallback — unless its lookup
-        // already came back as a confirmed catalog miss, in which case that
-        // reading can never lock and must not hold the name path hostage.
-        let collectorLineStillWinning = collectors.contains { candidate in
+        // A live set-coded reading usually resolves into an exact lock, so
+        // the fallback holds off longer while one is in play. Readings whose
+        // lookups came back as confirmed catalog misses can never lock and
+        // don't count.
+        let hasLiveSetCodedReading = collectors.contains { candidate in
             guard let setCode = candidate.info.setCode,
-                  candidate.weight >= configuration.strongCollectorWeight
+                  candidate.weight >= 0.3 // at least one recent parse
             else { return false }
             let key = CatalogAnswers.PrintingKey(
                 setCode: setCode,
@@ -149,13 +166,15 @@ nonisolated enum ScanResolver {
             if case .some(.none) = answers.printings[key] { return false }
             return true
         }
-        guard collectorLineStillWinning == false else { return nil }
+        let fallbackDelay = hasLiveSetCodedReading
+            ? configuration.nameOnlyContestedDelay
+            : configuration.nameOnlyFallbackDelay
 
         decision.progress = max(
             decision.progress,
             min(leadName.weight / configuration.nameOnlyLockThreshold, 1)
         )
-        guard elapsed >= configuration.nameOnlyFallbackDelay,
+        guard elapsed >= fallbackDelay,
               leadName.weight >= configuration.nameOnlyLockThreshold
         else { return nil }
 

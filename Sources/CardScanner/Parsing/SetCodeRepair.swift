@@ -13,7 +13,13 @@ nonisolated enum SetCodeRepair {
         "5": ["S"], "S": ["5"],
         "8": ["B"], "B": ["8"],
         "2": ["Z"], "Z": ["2"],
+        "6": ["G"], "G": ["6"],
     ]
+
+    /// Whether two set codes are plausibly OCR misreads of each other.
+    static func areConfusable(_ a: String, _ b: String) -> Bool {
+        a == b || variants(of: a).contains(b) || variants(of: b).contains(a)
+    }
 
     /// All single- and multi-character confusion variants of `code`,
     /// excluding the original, capped to keep lookup fan-out bounded.

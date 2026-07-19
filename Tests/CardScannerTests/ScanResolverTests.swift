@@ -77,6 +77,28 @@ struct ScanResolverTests {
         #expect(decision.lock == nil, "2.6 vs 2.0 is below the 2.0× lead ratio")
     }
 
+    @Test func ocrSiblingRunnerUpDoesNotBlockTheLock() {
+        // "M1D" is an OCR misread of "MID" with the same number — the same
+        // physical reading, not a competing card, so no ratio veto.
+        let sibling = CollectorInfo(collectorNumber: "117", setCode: "M1D")
+        let decision = decide(
+            names: [("Lightning Bolt", 2.0)],
+            collectors: [(midReading, 2.6), (sibling, 2.0)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock?.confidence == .exactPrinting)
+    }
+
+    @Test func bareNumberEchoDoesNotBlockTheLock() {
+        let echo = CollectorInfo(collectorNumber: "117", setCode: nil)
+        let decision = decide(
+            names: [("Lightning Bolt", 2.0)],
+            collectors: [(midReading, 2.6), (echo, 2.0)],
+            answers: answersWithHit()
+        )
+        #expect(decision.lock?.confidence == .exactPrinting)
+    }
+
     // MARK: Rule B — printing only
 
     @Test func ruleBLocksWithoutANameAtHigherWeight() {
@@ -158,17 +180,35 @@ struct ScanResolverTests {
         #expect(decision.lock == nil)
     }
 
-    @Test func ruleCIsSuppressedByAStrongCollectorReading() {
+    @Test func ruleCWaitsWhileASetCodedReadingResolves() {
         var answers = CatalogAnswers()
         answers.nameCandidates["lightning bolt"] = [midBolt]
         let decision = decide(
             names: [("Lightning Bolt", 3.2)],
             collectors: [(midReading, 1.5)],
             answers: answers,
-            elapsed: .seconds(3)
+            elapsed: .seconds(2.5)
         )
-        #expect(decision.lock == nil, "the collector line is still winning; keep working on it")
+        #expect(decision.lock == nil, "the collector path may still deliver an exact lock")
         #expect(decision.neededLookups == [.printing(setCode: "MID", collectorNumber: "117")])
+    }
+
+    @Test func ruleCEventuallyOverridesAStalledSetCodedReading() {
+        var answers = CatalogAnswers()
+        answers.nameCandidates["lightning bolt"] = [midBolt]
+        answers.printings.updateValue(
+            midBolt,
+            forKey: CatalogAnswers.PrintingKey(setCode: "MID", collectorNumber: "117")
+        )
+        // A set-coded reading that never accumulates enough weight to lock
+        // must not block identification forever.
+        let decision = decide(
+            names: [("Lightning Bolt", 3.2)],
+            collectors: [(midReading, 0.6)],
+            answers: answers,
+            elapsed: .seconds(4)
+        )
+        #expect(decision.lock != nil)
     }
 
     @Test func confirmedMissDoesNotBlockTheNameFallback() {
