@@ -177,15 +177,18 @@ public final class CardScannerModel {
 
     private func processFrames(_ frames: AsyncStream<VideoFrame>) async {
         var lastReadFinished: ContinuousClock.Instant?
+        var lastPassSawCard = true // optimistic: the first card snaps quickly
         for await frame in frames {
             guard Task.isCancelled == false else { break }
             guard phase == .searching else { continue }
 
-            // Pace recognition: drop frames that arrive before the interval
-            // has passed, so the Vision pipeline idles between passes
-            // instead of running at 100% duty cycle and cooking the device.
-            if let lastReadFinished,
-               clock.now - lastReadFinished < configuration.recognitionInterval {
+            // Adaptive pacing: read quickly while a card is in view (fast
+            // locks), slowly while staring at nothing (cool device) —
+            // instead of one compromise rate for both.
+            let interval = lastPassSawCard
+                ? configuration.recognitionInterval
+                : configuration.idleRecognitionInterval
+            if let lastReadFinished, clock.now - lastReadFinished < interval {
                 continue
             }
 
@@ -193,6 +196,7 @@ public final class CardScannerModel {
             do {
                 reading = try await engine.read(frame)
                 lastReadFinished = clock.now
+                lastPassSawCard = reading.cardDetected
             } catch {
                 continue // Transient recognition failure; the next frame retries.
             }
@@ -257,7 +261,13 @@ public final class CardScannerModel {
                 case .printing(let setCode, let collectorNumber):
                     let key = CatalogAnswers.PrintingKey(setCode: setCode, collectorNumber: collectorNumber)
                     guard answers.printings.index(forKey: key) == nil else { continue }
-                    let printing = try await catalog.printing(setCode: setCode, collectorNumber: collectorNumber)
+                    var printing = try await catalog.printing(setCode: setCode, collectorNumber: collectorNumber)
+                    if printing == nil {
+                        printing = try await repairedSetCodeLookup(
+                            setCode: setCode,
+                            collectorNumber: collectorNumber
+                        )
+                    }
                     answers.printings.updateValue(printing, forKey: key)
 
                 case .nameCandidates(let name):
@@ -278,6 +288,32 @@ public final class CardScannerModel {
                 }
             }
         }
+    }
+
+    /// After a confirmed miss, probes OCR look-alike variants of the set
+    /// code (never repaired at parse time) against the catalog. A hit is
+    /// accepted only when all matching variants agree on one printing — the
+    /// catalog itself is the safety check.
+    private func repairedSetCodeLookup(
+        setCode: String,
+        collectorNumber: String
+    ) async throws -> CatalogPrinting? {
+        var hits: [CatalogPrinting] = []
+        for variant in SetCodeRepair.variants(of: setCode) {
+            let key = CatalogAnswers.PrintingKey(setCode: variant, collectorNumber: collectorNumber)
+            let printing: CatalogPrinting?
+            if let cached = answers.printings[key] {
+                printing = cached
+            } else {
+                printing = try await catalog.printing(setCode: variant, collectorNumber: collectorNumber)
+                answers.printings.updateValue(printing, forKey: key)
+            }
+            if let printing {
+                hits.append(printing)
+            }
+        }
+        let distinctPrintings = Set(hits.map(\.id))
+        return distinctPrintings.count == 1 ? hits.first : nil
     }
 
     private func finalize(_ lock: ScanDecision.Lock) {

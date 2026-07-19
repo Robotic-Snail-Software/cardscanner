@@ -47,11 +47,11 @@ actor RecognitionEngine {
             throw ScannerError.recognitionFailed(String(describing: error))
         }
 
-        let collectorLines = orderedLines(from: collectorObservations)
+        let lineCandidates = orderedLineCandidates(from: collectorObservations)
         return FrameReading(
             name: nameReading(from: nameObservations),
-            collector: collectorReading(fromOrderedLines: collectorLines),
-            collectorLines: collectorLines.map(\.string),
+            collector: collectorReading(fromLineCandidates: lineCandidates),
+            collectorLines: lineCandidates.map(\.[0].string),
             cardDetected: cardRect != nil
         )
     }
@@ -123,30 +123,47 @@ actor RecognitionEngine {
     }
 
     /// Collector-band lines in reading order — lower-left-origin boxes mean
-    /// the top line has the larger midY.
-    private func orderedLines(
+    /// the top line has the larger midY. Each line carries Vision's ranked
+    /// alternate transcriptions, not just the top one.
+    private func orderedLineCandidates(
         from observations: [RecognizedTextObservation]
-    ) -> [(string: String, confidence: Double)] {
+    ) -> [[(string: String, confidence: Double)]] {
         observations
             .sorted { $0.boundingBox.cgRect.midY > $1.boundingBox.cgRect.midY }
             .compactMap { observation in
-                observation.topCandidates(1).first.map {
+                let candidates = observation.topCandidates(3).map {
                     (string: $0.string, confidence: Double($0.confidence))
                 }
+                return candidates.isEmpty ? nil : candidates
             }
     }
 
+    /// Parses the top transcription of every line; when that fails, retries
+    /// with each line's runner-up substituted one at a time — Vision's
+    /// second guess is often the correct read of a borderline line.
     private func collectorReading(
-        fromOrderedLines lines: [(string: String, confidence: Double)]
+        fromLineCandidates lineCandidates: [[(string: String, confidence: Double)]]
     ) -> FrameReading.CollectorReading? {
-        guard lines.isEmpty == false,
-              let info = CollectorLineParser.parse(lines: lines.map(\.string))
-        else { return nil }
-        // Vision under-reports confidence on very small text, but a reading
-        // that survived the parser's structural validity gates is strong
-        // evidence regardless — floor its vote so locks accumulate at the
-        // paced read rate.
-        let visionConfidence = lines.map(\.confidence).reduce(0, +) / Double(lines.count)
-        return FrameReading.CollectorReading(info: info, confidence: max(0.6, visionConfidence))
+        guard lineCandidates.isEmpty == false else { return nil }
+
+        var attempts: [[(string: String, confidence: Double)]] = []
+        let primary = lineCandidates.map(\.[0])
+        attempts.append(primary)
+        for index in lineCandidates.indices where lineCandidates[index].count > 1 {
+            var variant = primary
+            variant[index] = lineCandidates[index][1]
+            attempts.append(variant)
+        }
+
+        for lines in attempts {
+            guard let info = CollectorLineParser.parse(lines: lines.map(\.string)) else { continue }
+            // Vision under-reports confidence on very small text, but a
+            // reading that survived the parser's structural validity gates
+            // is strong evidence regardless — floor its vote so locks
+            // accumulate at the paced read rate.
+            let visionConfidence = lines.map(\.confidence).reduce(0, +) / Double(lines.count)
+            return FrameReading.CollectorReading(info: info, confidence: max(0.6, visionConfidence))
+        }
+        return nil
     }
 }

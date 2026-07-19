@@ -54,11 +54,17 @@ public nonisolated struct ScannerConfiguration: Sendable {
     /// Maximum candidates requested from `CardCatalog.candidates(forName:limit:)`.
     public var nameCandidateLimit: Int = 24
 
-    /// Minimum time between recognition passes. Without pacing the pipeline
-    /// runs back-to-back at 100% duty cycle (4K Vision work), heating the
-    /// device until the whole system throttles. ~5 passes/second still gives
-    /// voting several consistent reads well inside one decay half-life.
-    public var recognitionInterval: Duration = .milliseconds(150)
+    /// Minimum time between recognition passes while a card is detected.
+    /// Without pacing the pipeline runs back-to-back at 100% duty cycle
+    /// (4K Vision work), heating the device until the whole system
+    /// throttles; ~10 passes/second in short card-present bursts locks
+    /// quickly without sustained load.
+    public var recognitionInterval: Duration = .milliseconds(100)
+
+    /// Pass interval while nothing card-shaped is in view (between cards,
+    /// empty tray) — most of a scanning session, so this is where the
+    /// thermal budget is actually won.
+    public var idleRecognitionInterval: Duration = .milliseconds(400)
 
     /// Behavior after a lock. Defaults to auto-resume for stack scanning.
     public var autoResume: AutoResumeBehavior = .after(.milliseconds(1200))
