@@ -202,6 +202,11 @@ actor CameraCaptureService {
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
             }
+            // Brighten dim scanning conditions (evening, shadowed trays) so
+            // faint collector text is exposed better.
+            if device.isLowLightBoostSupported {
+                device.automaticallyEnablesLowLightBoostWhenAvailable = true
+            }
             device.activeVideoMinFrameDuration = CMTime(
                 value: 1,
                 timescale: CMTimeScale(configuration.maximumFrameRate)
