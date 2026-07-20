@@ -276,6 +276,39 @@ struct ScanResolverTests {
         #expect(decision.neededLookups == [.nameCandidates("Lightning Bolt")])
     }
 
+    @Test func bareNumberNarrowsAlternatesEvenWhenNotUnique() {
+        // Two Forests share collector number 306 across sets; the number
+        // still narrows the review list from "every Forest" to just those.
+        let a = CatalogPrinting(id: "a", name: "Forest", setCode: "7ED", collectorNumber: "347")
+        let b = CatalogPrinting(id: "b", name: "Forest", setCode: "8ED", collectorNumber: "306")
+        let c = CatalogPrinting(id: "c", name: "Forest", setCode: "9ED", collectorNumber: "306")
+        var answers = CatalogAnswers()
+        answers.nameCandidates["forest"] = [a, b, c]
+        let decision = decide(
+            names: [("Forest", 3.2)],
+            collectors: [(CollectorInfo(collectorNumber: "306", setCode: nil), 0.8)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock?.printing == nil, "306 still matches two printings")
+        #expect(Set(decision.lock?.alternates.map(\.id) ?? []) == ["b", "c"])
+    }
+
+    @Test func bareNumberPinsWhenItUniquelyMatches() {
+        let a = CatalogPrinting(id: "a", name: "Forest", setCode: "7ED", collectorNumber: "347")
+        let b = CatalogPrinting(id: "b", name: "Forest", setCode: "8ED", collectorNumber: "306")
+        var answers = CatalogAnswers()
+        answers.nameCandidates["forest"] = [a, b]
+        let decision = decide(
+            names: [("Forest", 3.2)],
+            collectors: [(CollectorInfo(collectorNumber: "306", setCode: nil), 1.4)],
+            answers: answers,
+            elapsed: .seconds(3)
+        )
+        #expect(decision.lock?.printing == b)
+        #expect(decision.lock?.confidence == .exactPrinting)
+    }
+
     @Test func setHintPinsThePrintingWhenNumberUnread() {
         // "UST" was read but the number wasn't — the hint should pick the
         // one UST printing of the name instead of leaving it arbitrary.

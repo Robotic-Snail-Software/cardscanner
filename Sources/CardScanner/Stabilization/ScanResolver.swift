@@ -206,29 +206,37 @@ nonisolated enum ScanResolver {
             configuration: configuration
         ) else { return nil }
 
-        var resolution = resolvedPrinting(
-            among: winner.printings,
-            collectors: collectors,
-            configuration: configuration
-        )
-        // If the number couldn't be read but the printed set code was, and
-        // exactly one printing of this name belongs to that set, pin it —
-        // this is the "UST read, number missed" case that otherwise picks an
-        // arbitrary reprint.
-        if resolution == nil, let setHint {
-            let setMatches = winner.printings.filter { $0.setCode == setHint }
-            if setMatches.count == 1 {
-                resolution = (setMatches[0], false)
-            }
+        // Narrow the name matches by every extra signal we have. Even when
+        // the number matches several printings (common for basics), the
+        // narrowed set makes the auto-pick and the review list far better
+        // than name alone.
+        var printings = winner.printings
+        let bareNumber = collectors.first { $0.info.setCode == nil }?.info.collectorNumber
+        if let bareNumber {
+            let matches = printings.filter { $0.collectorNumber == bareNumber }
+            if matches.isEmpty == false { printings = matches }
         }
-        // A confidently-read bare collector number agreeing with the matched
-        // name is two independent confirmations — exact-grade, same as a
-        // set-code path lock.
+        if printings.count > 1, let setHint {
+            let matches = printings.filter { $0.setCode == setHint }
+            if matches.isEmpty == false { printings = matches }
+        }
+
+        // A confidently-read number that leaves exactly one printing is two
+        // independent confirmations — exact-grade, same as the set+number
+        // path.
+        let numberConfident = collectors.contains {
+            $0.info.setCode == nil && $0.weight >= configuration.strongCollectorWeight
+        }
+        let pinned = printings.count == 1 ? printings.first : nil
+        let confidence: ScanConfidence = (pinned != nil && bareNumber != nil && numberConfident)
+            ? .exactPrinting
+            : .nameOnly
+
         return ScanDecision.Lock(
             name: winner.name,
-            printing: resolution?.printing,
-            confidence: resolution?.confirmedByNumber == true ? .exactPrinting : .nameOnly,
-            alternates: winner.printings
+            printing: pinned,
+            confidence: confidence,
+            alternates: printings
         )
     }
 
@@ -251,25 +259,4 @@ nonisolated enum ScanResolver {
         return (best.name, printings.sorted { ($0.setCode, $0.collectorNumber) < ($1.setCode, $1.collectorNumber) })
     }
 
-    /// Pins a specific printing for a name-matched lock when possible: a
-    /// bare collector-number reading (no set code, as printed on older
-    /// frames) that matches exactly one candidate printing settles it;
-    /// otherwise a name with a single printing is unambiguous by itself.
-    /// `confirmedByNumber` is true only when the agreeing number was itself
-    /// confidently read (enough accumulated weight), making the lock
-    /// exact-grade rather than name-grade.
-    private static func resolvedPrinting(
-        among printings: [CatalogPrinting],
-        collectors: [(info: CollectorInfo, weight: Double)],
-        configuration: ScannerConfiguration
-    ) -> (printing: CatalogPrinting, confirmedByNumber: Bool)? {
-        if let bare = collectors.first(where: { $0.info.setCode == nil }) {
-            let numberMatches = printings.filter { $0.collectorNumber == bare.info.collectorNumber }
-            if numberMatches.count == 1 {
-                let confident = bare.weight >= configuration.strongCollectorWeight
-                return (numberMatches[0], confident)
-            }
-        }
-        return printings.count == 1 ? (printings[0], false) : nil
-    }
 }
