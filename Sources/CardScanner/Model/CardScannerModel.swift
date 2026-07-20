@@ -85,6 +85,7 @@ public final class CardScannerModel {
     private let clock = ContinuousClock()
 
     private var accumulator: ObservationAccumulator
+    private var setHintVotes: [String: Double] = [:]
     private var answers = CatalogAnswers()
     private var pendingLookups: [ScanDecision.Lookup] = []
     private var cardScanStart: ContinuousClock.Instant?
@@ -187,6 +188,7 @@ public final class CardScannerModel {
 
     private func beginNextCard() {
         accumulator.reset()
+        setHintVotes.removeAll()
         pendingLookups.removeAll()
         liveCandidate = nil
         cardScanStart = clock.now
@@ -241,6 +243,14 @@ public final class CardScannerModel {
         if let collector = reading.collector {
             accumulator.recordCollector(collector.info, confidence: collector.confidence, at: elapsed)
         }
+        if let setHint = reading.setHint {
+            setHintVotes[setHint, default: 0] += 1
+        }
+    }
+
+    /// The set code read most often when the number couldn't be parsed.
+    private var leadingSetHint: String? {
+        setHintVotes.max { $0.value < $1.value }?.key
     }
 
     private func decide() {
@@ -251,6 +261,7 @@ public final class CardScannerModel {
             collectors: accumulator.rankedCollectors(at: elapsed),
             answers: answers,
             elapsed: elapsed,
+            setHint: leadingSetHint,
             configuration: configuration
         )
 

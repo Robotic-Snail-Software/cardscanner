@@ -73,12 +73,16 @@ nonisolated enum CardGuideGeometry {
     /// space. Extends below the rect's bottom edge: when detection returns
     /// the inner frame, the collector line sits *outside* it on the border.
     static func visionCollectorBand(inCard card: CGRect) -> CGRect {
+        // Spans from just below the card edge (inner-frame/white-border
+        // cards print the collector line outside the detected frame) up to
+        // ~16% of card height, so the number line — which sits above the
+        // set·language line — stays inside the band.
         clampedToUnitSquare(
             CGRect(
                 x: card.minX + card.width * 0.01,
-                y: card.minY - card.height * 0.07,
+                y: card.minY - card.height * 0.05,
                 width: card.width * 0.70,
-                height: card.height * 0.19
+                height: card.height * 0.21
             )
         )
     }

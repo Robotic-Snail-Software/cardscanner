@@ -14,6 +14,11 @@ nonisolated struct FrameReading: Equatable, Sendable {
     var name: NameReading?
     var collector: CollectorReading?
 
+    /// A set code read from the `SET • LANG` line when the collector number
+    /// couldn't be parsed — a soft hint for printing disambiguation, not a
+    /// lockable identity.
+    var setHint: String?
+
     /// Raw OCR lines from the collector band in reading order, before
     /// parsing — surfaced for on-device tuning and host debug UIs.
     var collectorLines: [String] = []

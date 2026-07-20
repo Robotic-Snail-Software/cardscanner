@@ -48,10 +48,15 @@ actor RecognitionEngine {
         }
 
         let lineCandidates = orderedLineCandidates(from: collectorObservations)
+        let collector = collectorReading(fromLineCandidates: lineCandidates)
+        let lines = lineCandidates.map(\.[0].string)
         return FrameReading(
             name: nameReading(from: nameObservations),
-            collector: collectorReading(fromLineCandidates: lineCandidates),
-            collectorLines: lineCandidates.map(\.[0].string),
+            collector: collector,
+            // When the number didn't parse, still surface the printed set
+            // code so the name-only path can pick the right printing.
+            setHint: collector == nil ? CollectorLineParser.setCodeHint(lines: lines) : nil,
+            collectorLines: lines,
             cardDetected: cardRect != nil
         )
     }

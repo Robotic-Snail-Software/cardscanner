@@ -62,6 +62,22 @@ nonisolated enum CollectorLineParser {
         return nil
     }
 
+    /// A validated set code from a `SET • LANG` line, ignoring the strict
+    /// number pairing. Used only as a soft hint to disambiguate printings
+    /// when the collector *number* couldn't be read — never as a lockable
+    /// collector identity.
+    static func setCodeHint(lines: [String]) -> String? {
+        let cleaned = lines
+            .map(TextNormalizer.collapsedWhitespace)
+            .filter { !$0.isEmpty }
+        for line in cleaned {
+            if let prefix = parseSetLanguagePrefix(line) {
+                return prefix.setCode
+            }
+        }
+        return nil
+    }
+
     // MARK: Ladder rungs
 
     /// Rung 1: everything on one line, e.g. `"0117/0277 M MID • EN"`.

@@ -20,6 +20,7 @@ nonisolated enum ScanResolver {
         collectors: [(info: CollectorInfo, weight: Double)],
         answers: CatalogAnswers,
         elapsed: Duration,
+        setHint: String? = nil,
         configuration: ScannerConfiguration
     ) -> ScanDecision {
         var decision = ScanDecision()
@@ -43,6 +44,7 @@ nonisolated enum ScanResolver {
             collectors: collectors,
             answers: answers,
             elapsed: elapsed,
+            setHint: setHint,
             configuration: configuration,
             decision: &decision
         ) {
@@ -159,6 +161,7 @@ nonisolated enum ScanResolver {
         collectors: [(info: CollectorInfo, weight: Double)],
         answers: CatalogAnswers,
         elapsed: Duration,
+        setHint: String?,
         configuration: ScannerConfiguration,
         decision: inout ScanDecision
     ) -> ScanDecision.Lock? {
@@ -203,11 +206,21 @@ nonisolated enum ScanResolver {
             configuration: configuration
         ) else { return nil }
 
-        let resolution = resolvedPrinting(
+        var resolution = resolvedPrinting(
             among: winner.printings,
             collectors: collectors,
             configuration: configuration
         )
+        // If the number couldn't be read but the printed set code was, and
+        // exactly one printing of this name belongs to that set, pin it —
+        // this is the "UST read, number missed" case that otherwise picks an
+        // arbitrary reprint.
+        if resolution == nil, let setHint {
+            let setMatches = winner.printings.filter { $0.setCode == setHint }
+            if setMatches.count == 1 {
+                resolution = (setMatches[0], false)
+            }
+        }
         // A confidently-read bare collector number agreeing with the matched
         // name is two independent confirmations — exact-grade, same as a
         // set-code path lock.

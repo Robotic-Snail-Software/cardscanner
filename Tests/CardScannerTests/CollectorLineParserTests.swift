@@ -14,6 +14,18 @@ struct CollectorLineParserTests {
         #expect(parsed == nil, "should reject: \(testCase.reason)")
     }
 
+    @Test func setCodeHintReadsSetWithoutANumber() {
+        // The pairing guard rejects a set with no number for locking, but the
+        // set is still recoverable as a soft hint.
+        #expect(CollectorLineParser.setCodeHint(lines: ["UST • EN Michael Phillippi"]) == "UST")
+        #expect(CollectorLineParser.parse(lines: ["UST • EN Michael Phillippi"]) == nil)
+    }
+
+    @Test func setCodeHintRejectsNonSetLines() {
+        #expect(CollectorLineParser.setCodeHint(lines: ["™ & © 2017 Wizards"]) == nil)
+        #expect(CollectorLineParser.setCodeHint(lines: ["068/216 C"]) == nil)
+    }
+
     @Test func setCodeIsNeverEmittedWithoutCollectorNumber() {
         // The pairing guard from prior prototypes, now enforced structurally:
         // a set/language line alone must produce nothing at all.

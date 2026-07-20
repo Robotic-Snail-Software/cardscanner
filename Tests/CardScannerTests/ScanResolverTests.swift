@@ -23,13 +23,15 @@ struct ScanResolverTests {
         names: [(name: String, weight: Double)] = [],
         collectors: [(info: CollectorInfo, weight: Double)] = [],
         answers: CatalogAnswers = CatalogAnswers(),
-        elapsed: Duration = .seconds(1)
+        elapsed: Duration = .seconds(1),
+        setHint: String? = nil
     ) -> ScanDecision {
         ScanResolver.decide(
             names: names,
             collectors: collectors,
             answers: answers,
             elapsed: elapsed,
+            setHint: setHint,
             configuration: configuration
         )
     }
@@ -272,6 +274,39 @@ struct ScanResolverTests {
         )
         #expect(decision.lock == nil)
         #expect(decision.neededLookups == [.nameCandidates("Lightning Bolt")])
+    }
+
+    @Test func setHintPinsThePrintingWhenNumberUnread() {
+        // "UST" was read but the number wasn't — the hint should pick the
+        // one UST printing of the name instead of leaving it arbitrary.
+        let ust = CatalogPrinting(id: "uuid-ust-68", name: "Snickering Squirrel", setCode: "UST", collectorNumber: "68")
+        let und = CatalogPrinting(id: "uuid-und-45", name: "Snickering Squirrel", setCode: "UND", collectorNumber: "45")
+        var answers = CatalogAnswers()
+        answers.nameCandidates["snickering squirrel"] = [ust, und]
+        let decision = decide(
+            names: [("Snickering Squirrel", 3.2)],
+            answers: answers,
+            elapsed: .seconds(3),
+            setHint: "UST"
+        )
+        #expect(decision.lock?.printing == ust)
+        #expect(decision.lock?.alternates.count == 2)
+    }
+
+    @Test func setHintIgnoredWhenItMatchesNoPrinting() {
+        let und = CatalogPrinting(id: "uuid-und-45", name: "Snickering Squirrel", setCode: "UND", collectorNumber: "45")
+        let uma = CatalogPrinting(id: "uuid-uma-9", name: "Snickering Squirrel", setCode: "UMA", collectorNumber: "9")
+        var answers = CatalogAnswers()
+        answers.nameCandidates["snickering squirrel"] = [und, uma]
+        let decision = decide(
+            names: [("Snickering Squirrel", 3.2)],
+            answers: answers,
+            elapsed: .seconds(3),
+            setHint: "ZZZ"
+        )
+        // No UST-equivalent printing; leaves the printing unpinned (ambiguous).
+        #expect(decision.lock?.confidence == .nameOnly)
+        #expect(decision.lock?.printing == nil)
     }
 
     @Test func ruleCLeavesPrintingOpenWhenAmbiguous() {
