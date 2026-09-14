@@ -114,3 +114,22 @@ If the Xcode MCP is configured, prefer its tools over generic alternatives when 
   * `RenderPreview` — visually verify SwiftUI views using Xcode Previews
   * `XcodeListNavigatorIssues` — check for issues visible in the Xcode Issue Navigator
   * `ExecuteSnippet` — test a code snippet in the context of a source file
+
+
+## Delegation
+
+Delegate work whose output you consume as an **input** — file locations, a distilled
+build log, "does a helper for this already exist". Do not delegate a **conclusion**
+you will act on without checking; verifying it costs as much as doing it.
+
+- `Agent` tool: `subagent_type` `Explore` (search), `Plan` (design), `general-purpose`
+  (edits). Set `model`: `haiku` for search and inventory, `sonnet` or `opus` for
+  judgment. Do not assume a subagent is cheaper than working inline.
+- Every delegated task states the exact question, the modules in scope, what is out of
+  scope, and the output format.
+- Require `file:line` citations and a short report. Forbid pasted file contents.
+- Skip delegation when a direct search answers it, when you already have the context,
+  or when the change is one or two files.
+
+Full policy, this project's module boundaries, high-risk surfaces, and validation
+commands: [`docs/DELEGATION.md`](docs/DELEGATION.md).
